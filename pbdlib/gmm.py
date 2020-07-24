@@ -40,7 +40,7 @@ class GMM(Model):
 			priors /= np.sum(priors)
 		else:
 			priors = self.priors
-		# print priors, self.priors
+		# print(priors, self.priors)
 
 		mus, sigmas = self.moment_matching(priors)
 		mvn = MVN(nb_dim=self.nb_dim, mu=mus[0], sigma=sigmas[0])
@@ -363,7 +363,7 @@ class GMM(Model):
 			if dep_mask is not None:
 				self.sigma *= dep_mask
 
-			# print self.Sigma[:,u :, i]
+			# print(self.Sigma[:,u :, i])
 
 			# Update initial state probablility vector
 			self.priors = np.mean(GAMMA, axis=1)
@@ -410,7 +410,7 @@ class GMM(Model):
 			t_sep += [
 				list(map(int, np.round(np.linspace(0, demo.shape[0], self.nb_states + 1))))]
 
-		# print t_sep
+		# print(t_sep)
 		for i in range(self.nb_states):
 			data_tmp = np.empty((0, self.nb_dim))
 			inds = []
@@ -436,7 +436,7 @@ class GMM(Model):
 					dGrid = np.ix_([i], d, d)
 					self.sigma[dGrid] = (np.cov(data_tmp[:, d].T) + np.eye(
 						len(d)) * reg)[:, :, np.newaxis]
-		# print self.Sigma[:,:,i]
+		# print(self.Sigma[:,:,i])
 
 		# normalize priors
 		self.priors = self.priors / np.sum(self.priors)

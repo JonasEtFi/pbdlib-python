@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="6414959b-bd88-4288-be25-8e4232d6acec" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/gui/demos.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/demos.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/notebooks/pbdlib - basics.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/pbdlib - basics.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pbdlib/gmm.py" beforeDir="false" afterPath="$PROJECT_DIR$/pbdlib/gmm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pbdlib/gmr.py" beforeDir="false" afterPath="$PROJECT_DIR$/pbdlib/gmr.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pbdlib/gui/demos.py" beforeDir="false" afterPath="$PROJECT_DIR$/pbdlib/gui/demos.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pbdlib/hmm.py" beforeDir="false" afterPath="$PROJECT_DIR$/pbdlib/hmm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pbdlib/hsmm.py" beforeDir="false" afterPath="$PROJECT_DIR$/pbdlib/hsmm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pbdlib/utils/rosbag_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/pbdlib/utils/rosbag_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pbdlib/utils/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/pbdlib/utils/utils.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectId" id="1f8Pd3nrNcIQvie0381LGPn5jbp" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="settings.editor.selected.configurable" value="preferences.general" />
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="2158" y="688" width="603" height="546" key="find.popup" timestamp="1595596888034">
+      <screen x="1920" y="0" width="1080" height="1920" />
+    </state>
+    <state x="2158" y="688" width="603" height="546" key="find.popup/0.442.1920.1055/1920.0.1080.1920@1920.0.1080.1920" timestamp="1595596888034" />
+  </component>
+</project>

@@ -119,10 +119,10 @@ class HMM(GMM):
 
             resp = np.zeros((demo.shape[0], self.nb_states))
 
-            # print t_sep
+            # print(t_sep)
             for i in range(self.nb_states):
                 resp[t_sep[-1][i]:t_sep[-1][i+1], i] = 1.0
-            # print resp
+            # print(resp)
             t_resp += [resp]
 
         return np.concatenate(t_resp)
@@ -412,7 +412,7 @@ class HMM(GMM):
                 self.Trans /= np.sum(self.Trans, axis=1, keepdims=True)
 
 
-            # print self.Trans
+            # print(self.Trans)
             # Compute avarage log-likelihood using alpha scaling factors
             LL[it] = 0
             for n in range(nb_samples):
@@ -439,8 +439,8 @@ class HMM(GMM):
                     if cov_type == 'diag':
                         self.sigma[i] *= np.eye(self.sigma.shape[1])
 
-                # print "EM converged after " + str(it) + " iterations"
-                # print LL[it]
+                # print("EM converged after " + str(it) + " iterations")
+                # print(LL[it])
 
                 if dep_mask is not None:
                     self.sigma *= dep_mask

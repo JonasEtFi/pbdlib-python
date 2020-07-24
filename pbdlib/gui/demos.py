@@ -133,7 +133,7 @@ class InteractiveDemos(Interactive, Robot):
 		if self.is_demonstrating:
 			if self.curr_mouse_pos is None: self.pretty_print('Outside'); return
 
-			# print self.x, self.dx
+			# print(self.x, self.dx
 			kp = 400.;
 			kv = kp ** 0.5 * 2
 

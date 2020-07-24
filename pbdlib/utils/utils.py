@@ -685,7 +685,7 @@ def train_test(demos, demo_idx=0, nb_states=5, test=True, sensory=True, kbins=Tr
 
 			best['model'] = deepcopy(model)
 
-	print 'Best :', best['score']
+	print('Best :', best['score'])
 	model = best['model']
 
 	model.compute_duration(demos_train)
@@ -717,7 +717,7 @@ def repro_demo(model, hmmr, demos, demo_idx=0, start_point=None, plot_on=False):
 	prod_1 = model.prodgmm(tp)
 
 	### get state sequence ###
-	# print model.PriorsR
+	# print(model.PriorsR)
 	h_1 = model.forward_variable_priors(t, model.PriorsR, start_priors=model.StatesPriors)
 
 	hmmr.create_distribution_fwd(h_1, start_pos=None)  # 64.3 ms  ~1.5 ms per timestep
@@ -726,7 +726,7 @@ def repro_demo(model, hmmr, demos, demo_idx=0, start_point=None, plot_on=False):
 	lqr = pbd.LQR(canonical=True, horizon=70, rFactor=-2.0, nb_dim=3)
 
 	q = np.argmax(h_1, axis=0)
-	# print q
+	# print(q)
 	# make a rest at the end
 	q = np.concatenate([q, np.ones(20) * q[-1]])
 
