@@ -93,8 +93,8 @@ class GMR():
 			else:
 				beta = np.ones(prob.shape) / prob.shape[0]
 
-		# print(prob_un)
-		# print(prob)
+		# print prob_un
+		# print prob
 
 		MuOut = None
 		SigmaOut = None
@@ -324,8 +324,8 @@ class GMR():
 		else:
 			beta = np.ones(prob.shape) / prob.shape[0]
 		#
-		# print(beta)
-		# print("*****")
+		# print beta
+		# print "*****"
 
 		MuOut = np.zeros(len(self.output), dtype=float)
 		SigmaOut = np.zeros((len(self.output), len(self.output)), dtype=float)

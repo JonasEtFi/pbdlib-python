@@ -119,10 +119,10 @@ class HMM(GMM):
 
             resp = np.zeros((demo.shape[0], self.nb_states))
 
-            # print(t_sep)
+            # print t_sep
             for i in range(self.nb_states):
                 resp[t_sep[-1][i]:t_sep[-1][i+1], i] = 1.0
-            # print(resp)
+            # print resp
             t_resp += [resp]
 
         return np.concatenate(t_resp)
@@ -201,7 +201,6 @@ class HMM(GMM):
             sample_size = demo.shape[0]
         elif isinstance(demo, dict):
             sample_size = demo['x'].shape[0]
-
         B, _ = self.obs_likelihood(demo, dep, marginal, sample_size)
         # if table is not None:
         # 	B *= table[:, [n]]
@@ -256,11 +255,14 @@ class HMM(GMM):
         """
         mu = np.mean(data, axis=0)
         sigma = np.cov(data.T)
+        if sigma.ndim == 0:
+            sigma = np.ones((1,1))*sigma
+
 
         if left_to_right:
             self.mu = np.array([mu for i in range(self.nb_states)])
         else:
-            self.mu = np.array([np.random.multivariate_normal(mu, sigma)
+            self.mu = np.array([np.random.multivariate_normal(mu*1, sigma)
                  for i in range(self.nb_states)])
 
         self.sigma = np.array([sigma + self.reg for i in range(self.nb_states)])
@@ -412,7 +414,7 @@ class HMM(GMM):
                 self.Trans /= np.sum(self.Trans, axis=1, keepdims=True)
 
 
-            # print(self.Trans)
+            # print self.Trans
             # Compute avarage log-likelihood using alpha scaling factors
             LL[it] = 0
             for n in range(nb_samples):
@@ -439,8 +441,8 @@ class HMM(GMM):
                     if cov_type == 'diag':
                         self.sigma[i] *= np.eye(self.sigma.shape[1])
 
-                # print("EM converged after " + str(it) + " iterations")
-                # print(LL[it])
+                # print "EM converged after " + str(it) + " iterations"
+                # print LL[it]
 
                 if dep_mask is not None:
                     self.sigma *= dep_mask
