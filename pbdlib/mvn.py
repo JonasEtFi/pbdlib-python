@@ -298,8 +298,10 @@ class MVN(object):
         if self.mu.ndim == 1:
             return np.random.multivariate_normal(self.mu, self.sigma, size=size)
         else:
-            eps = np.random.normal(size=self.mu.shape)
-            return self.mu + np.einsum('aij,aj->ai ', np.linalg.cholesky(self.sigma),eps)
+            if size is None:
+                size = 1
+            eps = np.random.normal(size=(size,)+self.mu.shape)
+            return self.mu + np.einsum('bij,abj->abi ', np.linalg.cholesky(self.sigma),eps)
 
     def pdf(self, x):
         return mvn_pdf(x, self.mu[None], self.sigma_chol[None], self.lmbda[None])

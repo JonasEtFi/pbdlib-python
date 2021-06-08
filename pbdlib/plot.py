@@ -617,8 +617,8 @@ def plot_dynamic_system(f, nb_sub=10, ax=None, xlim=[-1, 1], ylim=[-1, 1], scale
 
     if ax is not None:
         strm = ax.streamplot(X, Y, U, V, linewidth=scale * speed, **kwargs)
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
+        # ax.set_xlim(xlim)
+        # ax.set_ylim(ylim)
 
         if equal:
             ax.set_aspect('equal')
