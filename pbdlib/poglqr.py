@@ -945,29 +945,16 @@ class LQTAugmented(LQR):
 
         return K_t
 
-    def get_K_fb2(self, K_tilde):
-        # Closed loop matching
-        K_t = np.zeros_like(K_tilde)
-        K_t[0] = self.K_tilde[0]
-        K_tilde_stacked = self.K_tilde.reshape(-1, self.nb_dim)
-        for i in range(1, self.horizon):
-            K_t[i] = self.K_tilde[i] @ np.linalg.inv(
-                self.s_xi[i * self.nb_dim:(i + 1) * self.nb_dim] + self.s_u[i * self.nb_dim:(i + 1) * self.nb_dim] @ K_tilde_stacked)
-
-        return K_t
-
     @property
     def K(self):
         if self._K is None:
             K_t = np.zeros_like(self.K_tilde)
-            # # Closed loop matching
-            K_t[0] = self.K_tilde[0]
-            K_tilde_stacked = self.K_tilde.reshape(-1, self.nb_dim)
-            for i in range(1, self.horizon):
-                K_t[i] = self.K_tilde[i] @ np.linalg.inv(
-                    self.s_xi[i * self.nb_dim:(i + 1) * self.nb_dim] + self.s_u[i * self.nb_dim:(i + 1) * self.nb_dim] @ K_tilde_stacked)
-
+            prod = np.eye(self.nb_dim)
+            for i in range(self.horizon):
+                K_t[i] = self.K_tilde[i] @ prod
+                prod = prod @ np.linalg.inv(self.A + self.B @ K_t[i])
             self._K = K_t
+        
         return self._K
 
     @property
