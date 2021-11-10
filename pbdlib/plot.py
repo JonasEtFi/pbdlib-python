@@ -310,7 +310,7 @@ def plot_function_map(f, nb_sub=10, ax=None, xlim=[-1, 1], ylim=[-1, 1], opp=Fal
     ax.imshow(z, interpolation='bilinear', origin='lower', extent=xlim + ylim,
               alpha=0.5, cmap='viridis', vmin=vmin, vmax=vmax, zorder=zorder)
 
-    return z
+    return xx,yy,z
 
 
 def plot_mixture_linear_system(model, mode='glob', nb_sub=20, gmm=True, min_alpha=0.,
