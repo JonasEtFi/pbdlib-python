@@ -22,10 +22,9 @@ Pignat, E. and Calinon, S. (2017). [Learning adaptive dressing assistance from h
 
 # Installation
 
-This requires v2.7 of Python.
+This requires v3.X of Python.
 
 Following these instructions install the library without copying the files, allowing to edit the sources files without reinstalling.
-
 
     cd pbdlib-python
     pip install -e .
