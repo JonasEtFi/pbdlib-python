@@ -9,9 +9,15 @@ If you came there reading one of the following works, please directly go to the 
 
 Pbdlib is a python library for robot programming by demonstration. The goal is to provide users with an easy to use library of algorithms that can be used to learn movement primitives using probabilistic tools.
 
-This Python version of Pbdlib is maintained by Emmanuel Pignat at the Idiap Research Institute. Pbdlib is a collection of codes available in different languages and developed as a joint effort between the Idiap Research Institute and the Italian Institute of Technology (IIT). 
+This Python version of Pbdlib is maintained by the Idiap Research Institute. Pbdlib is a collection of codes available in different languages and developed as a joint effort between the Idiap Research Institute and the Italian Institute of Technology (IIT). 
 
 For more information see http://www.idiap.ch/software/pbdlib/.
+
+### License
+
+Copyright (c) 2023 Idiap Research Institute, https://idiap.ch/
+
+Pbdlib-python is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License version 3 as published by the Free Software Foundation. You should have received a copy of the GNU General Public License along with RCFS. If not, see <https://www.gnu.org/licenses/>.
 
 ## References
 
