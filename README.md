@@ -3,7 +3,6 @@
 If you came there reading one of the following works, please directly go to the related page.
 
 - [Bayesian Gaussian mixture model for robotic policy imitation](https://gitlab.idiap.ch/rli/pbdlib-python/blob/master/pop/readme.md)
-- [Variational Inference with Mixture Model Approximation for Applications in Robotics](https://gitlab.idiap.ch/rli/pbdlib-python/blob/master/vmm/readme.md)
 
 
 # pbdlib
@@ -23,10 +22,9 @@ Pignat, E. and Calinon, S. (2017). [Learning adaptive dressing assistance from h
 
 # Installation
 
-This requires v2.7 of Python.
+This requires v3.X of Python.
 
 Following these instructions install the library without copying the files, allowing to edit the sources files without reinstalling.
-
 
     cd pbdlib-python
     pip install -e .

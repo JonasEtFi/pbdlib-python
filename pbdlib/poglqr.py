@@ -2,7 +2,7 @@ import numpy as np
 from .utils.utils import lifted_transfer_matrix
 import pbdlib as pbd
 from . import MVN
-
+from scipy.linalg import block_diag
 
 class LQR(object):
     def __init__(self, A=None, B=None, nb_dim=2, dt=0.01, horizon=50):
@@ -318,7 +318,7 @@ class LQR(object):
 
     def get_command(self, xi, i):
         if xi.ndim == 1:
-            return -self._K[i].dot(xi) + self._Kv[i].dot(self._v[i])
+            return -self._K[i].dot(xi) + self._Kv[i].dot(self._v[i+1])
         else:
             return np.einsum('ij,aj->ai', -self.K[i], xi) + self._Kv[i].dot(self._v[i + 1])
 
@@ -362,9 +362,17 @@ class LQR(object):
     def trajectory_distribution(self, xi, u, t):
         pass
 
+    def get_nullspace(self, i):
+        """
+        Experimental function for the nullspce structure
+
+        :return:
+        """
+        return np.eye(self.u_dim) - self._K[i].dot(np.linalg.pinv(self._K[i]))
+
     def get_seq(self, xi0, return_target=False):
         xis = [xi0]
-        us = [-self._K[0].dot(xi0) + self._Kv[0].dot(self._v[0])]
+        us = [-self._K[0].dot(xi0) + self._Kv[0].dot(self._v[1])]
 
         ds = []
 
@@ -521,6 +529,10 @@ class PoGLQR(LQR):
         self._mvn_sol_xi, self._mvn_sol_u = None, None
 
         self._seq_xi, self._seq_u = None, None
+        self._K_tilde = None
+        self._u_f_tilde = None
+        self._K = None
+        self._u_f = None
 
     @property
     def A(self):
@@ -653,13 +665,57 @@ class PoGLQR(LQR):
 
     @property
     def xis(self):
-        return self.mvn_sol_xi.mu.reshape(self.horizon, self.xi_dim / self.horizon)
+        return self.mvn_sol_xi.mu.reshape(self.horizon, self.xi_dim)
+
+    # @property
+    # def k(self):
+    #     # return self.mvn_sol_u.sigma.dot(self.s_u.T.dot(self.mvn_xi.lmbda)).dot(self.s_xi).reshape(
+    #     return self.mvn_sol_u.sigma.dot(self.s_u.T.dot(self.mvn_xi.lmbda)).dot(self.s_xi).reshape(
+    #         (self.horizon, self.mvn_u_dim / self.horizon, self.mvn_xi_dim / self.horizon))
+    @property
+    def K_tilde(self):
+        if self._K_tilde is None:
+            Q = self.mvn_xi.lmbda
+            R = self.mvn_u.lmbda
+            self._K_tilde = (-np.linalg.inv(self.s_u.T @ Q @ self.s_u + R) @ self.s_u.T @ Q @ self.s_xi).reshape(self.horizon, self.u_dim, -1)
+        return self._K_tilde
 
     @property
-    def k(self):
-        # return self.mvn_sol_u.sigma.dot(self.s_u.T.dot(self.mvn_xi.lmbda)).dot(self.s_xi).reshape(
-        return self.mvn_sol_u.sigma.dot(self.s_u.T.dot(self.mvn_xi.lmbda)).dot(self.s_xi).reshape(
-            (self.horizon, self.mvn_u_dim / self.horizon, self.mvn_xi_dim / self.horizon))
+    def K(self):
+        if self._K is None:
+            K_t = np.zeros_like(self.K_tilde)
+            # Open loop matching
+            prod = np.eye(self.nb_dim)
+            for i in range(self.horizon):
+                K_t[i] = self.K_tilde[i] @ prod
+                prod = prod @ np.linalg.inv(self.A + self.B @ K_t[i])
+
+            # # # Closed loop matching
+            # K_t[0] = self.K_tilde[0]
+            # K_tilde_stacked = self.K_tilde.reshape(-1, self.nb_dim)
+            # for i in range(1, self.horizon):
+            #     K_t[i] = self.K_tilde[i] @ np.linalg.inv(
+            #         self.s_xi[i * self.nb_dim:(i + 1) * self.nb_dim] + self.s_u[i * self.nb_dim:(i + 1) * self.nb_dim] @ K_tilde_stacked)
+
+            self._K = K_t
+        return self._K
+
+    @property
+    def u_f_tilde(self):
+        if self._u_f_tilde is None:
+            Q = self.mvn_xi.lmbda
+            mu = self.mvn_xi.mu
+            R = self.mvn_u.lmbda
+            self._u_f_tilde = (np.linalg.inv(self.s_u.T @ Q @ self.s_u + R) @ self.s_u.T @ Q @ mu ).reshape(self.horizon, self.u_dim)
+        return self._u_f_tilde
+
+    @property
+    def u_f(self):
+        if self._u_f is None:
+            u_f_tilde = self.u_f_tilde.flatten()
+            # self._u_f = (u_f_tilde  - block_diag(*self.K) @ self.s_u @ u_f_tilde).reshape(self.horizon, self.u_dim)
+            self._u_f = (np.linalg.pinv(self.s_u) @ (self.s_u @ u_f_tilde - self.s_u @ block_diag(*self.K) @ self.s_u @ u_f_tilde)).reshape(self.horizon, self.u_dim)
+        return self._u_f
 
     @property
     def s_u(self):
@@ -693,3 +749,266 @@ class PoGLQR(LQR):
         self.reset_params()
 
         self._horizon = value
+
+    def compute_nullspace(self):
+        Q = self.mvn_xi.lmbda
+        R = self.mvn_u.lmbda
+        # J = Q**0.5@self.s_u
+        # N = np.eye(self.s_u.shape[1]) - np.linalg.pinv(J)@J
+        pinvSu = np.linalg.inv(self.s_u.T @ Q @ self.s_u + R) @ self.s_u.T @ Q
+
+        N = np.eye(self.s_u.shape[1])-pinvSu @ self.s_u
+
+        return N
+
+
+
+class LQTAugmented(LQR):
+    """
+    Implementation of Augmented LQT with Product of Gaussians
+    """
+
+    def __init__(self, A=None, B=None, nb_dim=2, dt=0.01, horizon=50):
+        self._horizon = horizon
+
+        self.nb_dim = nb_dim + 1
+        self.dt = dt
+
+        self.A = np.eye(self.nb_dim)
+        self.A[:nb_dim, :nb_dim] = A
+        self.B = np.concatenate([B, np.zeros((1,B.shape[-1]))], 0)
+
+        self._s_xi, self._s_u = None, None
+        self._x0 = None
+
+        self._mvn_xi, self._mvn_u = None, None
+        self._mvn_sol_xi, self._mvn_sol_u = None, None
+
+        self._seq_xi, self._seq_u = None, None
+
+        self._K_tilde = None
+        self._K = None
+
+    @property
+    def A(self):
+        return self._A
+
+    @A.setter
+    def A(self, value):
+        self.reset_params()  # reset params
+        self._A = value
+
+    @property
+    def B(self):
+        return self._B
+
+    @B.setter
+    def B(self, value):
+        self.reset_params()  # reset params
+        self._B = value
+
+    @property
+    def mvn_u_dim(self):
+        """
+        Number of dimension of input sequence lifted form
+        :return:
+        """
+        if self.B is not None:
+            return self.B.shape[1] * self.horizon
+        else:
+            return self.nb_dim * self.horizon
+
+    @property
+    def mvn_xi_dim(self):
+
+        """
+        Number of dimension of state sequence lifted form
+        :return:
+        """
+        if self.A is not None:
+            return self.A.shape[0] * self.horizon
+        else:
+            return self.nb_dim * self.horizon * 2
+
+    @property
+    def mvn_sol_u(self):
+        """
+        Distribution of control input after solving LQR
+        :return:
+        """
+        assert self.x0 is not None, "Please specify a starting state"
+        assert self.mvn_xi is not None, "Please specify a target distribution"
+        assert self.mvn_u is not None, "Please specify a control input distribution"
+
+        if self._mvn_sol_u is None:
+            self._mvn_sol_u = self.mvn_xi.inv_trans_s(
+                self.s_u, self.s_xi.dot(self.x0)) % self.mvn_u
+
+        return self._mvn_sol_u
+
+    @property
+    def seq_xi(self):
+        if self._seq_xi is None:
+            self._seq_xi = self.mvn_sol_xi.mu.reshape(self.horizon, self.xi_dim)
+
+        return self._seq_xi
+
+    @property
+    def seq_u(self):
+        if self._seq_u is None:
+            self._seq_u = self.mvn_sol_u.mu.reshape(self.horizon, self.u_dim)
+
+        return self._seq_u
+
+    @property
+    def mvn_sol_xi(self):
+        """
+        Distribution of state after solving LQR
+        :return:
+        """
+        if self._mvn_sol_xi is None:
+            self._mvn_sol_xi = self.mvn_sol_u.transform(
+                self.s_u, self.s_xi.dot(self.x0))
+
+        return self._mvn_sol_xi
+
+    @property
+    def mvn_xi(self):
+        """
+        Distribution of state
+        :return:
+        """
+        return self._mvn_xi
+
+    @mvn_xi.setter
+    def mvn_xi(self, value):
+        """
+        :param value 		[float] or [pbd.MVN]
+        """
+        # resetting solution
+        self._mvn_sol_xi = None
+        self._mvn_sol_u = None
+        self._seq_u = None
+        self._seq_xi = None
+
+        self._mvn_xi = value
+
+    @property
+    def mvn_u(self):
+        """
+        Distribution of control input
+        :return:
+        """
+        return self._mvn_u
+
+    @mvn_u.setter
+    def mvn_u(self, value):
+        """
+        :param value 		[float] or [pbd.MVN]
+        """
+        # resetting solution
+        self._mvn_sol_xi = None
+        self._mvn_sol_u = None
+        self._seq_u = None
+        self._seq_xi = None
+
+        if isinstance(value, pbd.MVN):
+            self._mvn_u = value
+        else:
+            self._mvn_u = pbd.MVN(
+                mu=np.zeros(self.mvn_u_dim), lmbda=10 ** value * np.eye(self.mvn_u_dim))
+
+    @property
+    def xis(self):
+        return self.mvn_sol_xi.mu.reshape(self.horizon, self.xi_dim)
+
+    @property
+    def K_tilde(self):
+        if self._K_tilde is None:
+            Q = self.mvn_xi.lmbda
+            R = self.mvn_u.lmbda
+            self._K_tilde = (-np.linalg.inv(self.s_u.T @ Q @ self.s_u + R) @ self.s_u.T @ Q @ self.s_xi).reshape(self.horizon, self.u_dim, -1)
+        return self._K_tilde
+    #
+    def compute_K_tilde_without_R(self):
+        Q = self.mvn_xi.lmbda
+        return (-np.linalg.pinv(self.s_u.T @ Q @ self.s_u) @ self.s_u.T @ Q @ self.s_xi).reshape(
+            self.horizon, self.u_dim, -1)
+
+    def get_K_fb(self,K_tilde):
+        # Open loop matching
+        K_t = np.zeros_like(K_tilde)
+        prod = np.eye(self.nb_dim)
+        for i in range(self.horizon):
+            K_t[i] = K_tilde[i] @ prod
+            prod = prod @ np.linalg.inv(self.A + self.B @ K_t[i])
+
+        return K_t
+
+    @property
+    def K(self):
+        if self._K is None:
+            K_t = np.zeros_like(self.K_tilde)
+            prod = np.eye(self.nb_dim)
+            for i in range(self.horizon):
+                K_t[i] = self.K_tilde[i] @ prod
+                prod = prod @ np.linalg.inv(self.A + self.B @ K_t[i])
+            self._K = K_t
+        
+        return self._K
+
+    @property
+    def s_u(self):
+        if self._s_u is None:
+            self._s_xi, self._s_u = lifted_transfer_matrix(self.A, self.B,
+                                                           horizon=self.horizon, dt=self.dt, nb_dim=self.nb_dim)
+        return self._s_u
+
+    @property
+    def s_xi(self):
+        if self._s_xi is None:
+            self._s_xi, self._s_u = lifted_transfer_matrix(self.A, self.B,
+                                                           horizon=self.horizon, dt=self.dt, nb_dim=self.nb_dim)
+
+        return self._s_xi
+
+    def reset_params(self):
+        # reset everything
+        self._s_xi, self._s_u = None, None
+        self._x0 = None
+        # self._mvn_xi, self._mvn_u = None, None
+        self._mvn_sol_xi, self._mvn_sol_u = None, None
+        self._seq_xi, self._seq_u = None, None
+
+    @property
+    def horizon(self):
+        return self._horizon
+
+    @horizon.setter
+    def horizon(self, value):
+        self.reset_params()
+
+        self._horizon = value
+
+    # def compute_nullspace(self):
+    #     Q = self.mvn_xi.lmbda
+    #     R = self.mvn_u.lmbda
+    #     pinvSu = np.linalg.inv(self.s_u.T @ Q @ self.s_u + R) @ self.s_u.T @ Q
+    #     N = np.eye(self.s_u.shape[1])-pinvSu @ self.s_u
+    #     return N
+
+    def compute_nullspace2(self):
+        Q = self.mvn_xi.lmbda
+        Ux = np.linalg.cholesky(Q+np.eye(Q.shape[0])*1e-20)
+        J = Ux.T@self.s_u
+        pinvJ = np.linalg.pinv(J)
+        return np.eye(self.s_u.shape[1]) - pinvJ @ J
+
+    def compute_nullspace(self):
+        Q = self.mvn_xi.lmbda
+        A = self.s_u.T @ Q @ self.s_u
+        A_pinv = np.linalg.inv(A.T@A+np.eye(A.shape[1])*1e-20)@A.T
+        # A_pinv = A.T@np.linalg.inv(A @ A.T+np.eye(A.shape[0])*1e-20)
+        return np.eye(self.s_u.shape[1]) - A@A_pinv
+
+

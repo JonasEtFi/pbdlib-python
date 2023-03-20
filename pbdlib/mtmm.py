@@ -313,7 +313,8 @@ class MTMM(Model):
 
 		elif moment_matching:
 			# apply moment matching to get a single MVN for each datapoint
-			return gaussian_moment_matching(mu_est, sigma_est * (nu / (nu - 2.))[:, None, None, None], h)
+			mu,sigma = gaussian_moment_matching(mu_est, sigma_est * (nu / (nu - 2.))[:, None, None, None], h)
+			return MVN(mu,sigma)
 
 		else:
 			return self.cond

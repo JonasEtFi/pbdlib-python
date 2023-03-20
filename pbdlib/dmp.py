@@ -67,7 +67,6 @@ class DMP(object):
         K_inv = np.linalg.inv(self.K)  # [features, features]
         Dv = np.einsum('ij,tdlj->tdli', self.D, v)  # [task_number, demo_number, data_length, features]
 
-
         self.formula = formula
         # # Pastor et al, 2011, Learning and Generalization of Motor Skills ... (improved)
         if self.formula == 1:
@@ -77,18 +76,18 @@ class DMP(object):
         elif self.formula == 2:
             # # Heiko Hoffmann form 2009
             self.f_target = np.einsum('ij,tdlj->tdli', K_inv, tau_v_dot + Dv) + \
-            				(self.x - self.g) + \
-            				np.einsum('tdl,tdlj->tdlj', s[:, :, :, 0], self.g - self.x0)
+                            (self.x - self.g) + \
+                            np.einsum('tdl,tdlj->tdlj', s[:, :, :, 0], self.g - self.x0)
             self.f_target = self.f_target / self.s
         elif self.formula == 3:
             # # Pastor et al, 2011, Learning and Generalization of Motor Skills ... (classic)
-            self.f_target = (tau_v_dot + Dv + np.einsum('ij,tdlj->tdli', self.K, self.x - self.g))/(self.g-self.x0)
+            self.f_target = (tau_v_dot + Dv + np.einsum('ij,tdlj->tdli', self.K, self.x - self.g)) / (self.g - self.x0)
         elif self.formula == 4:
             # # The simplest form
             self.f_target = tau_v_dot + Dv + np.einsum('ij,tdlj->tdli', self.K, self.x - self.g)
         elif self.formula == 5:
             # # Sylvain's form
-            self.f_target = (tau_v_dot + Dv + np.einsum('ij,tdlj->tdli', self.K, self.x - self.g))/self.s
+            self.f_target = (tau_v_dot + Dv + np.einsum('ij,tdlj->tdli', self.K, self.x - self.g)) / self.s
 
         if state_dependent:
             self.inp = self.x
@@ -145,7 +144,7 @@ class DMP(object):
         sol = np.linalg.lstsq(
             np.concatenate(np.concatenate(bf_target, axis=0), axis=0),
             np.concatenate(np.concatenate(f_target, axis=0), axis=0),
-        rcond=None)
+            rcond=None)
         self._weights = sol[0]
 
     def learn_gmm(self, n_comp=20, hmm=False, hsmm=False, plot=False, reg=1e-5):
@@ -425,22 +424,22 @@ class DMP(object):
             )
         elif self.formula == 3:
             v_dot = (1.0 / des_tau) * (
-            		np.dot(self.K, g - x)
-            		- np.dot(self.D, v)
-            		+ fs.dot(g-x0)
-            	)
+                    np.dot(self.K, g - x)
+                    - np.dot(self.D, v)
+                    + fs.dot(g - x0)
+            )
         elif self.formula == 4:
             v_dot = (1.0 / des_tau) * (
-            		np.dot(self.K, g - x)
-            		- np.dot(self.D, v)
-            		+ fs
-            	)
+                    np.dot(self.K, g - x)
+                    - np.dot(self.D, v)
+                    + fs
+            )
         elif self.formula == 5:
             v_dot = (1.0 / des_tau) * (
-            		np.dot(self.K, g - x)
-            		- np.dot(self.D, v)
-            		+ fs*s
-            	)
+                    np.dot(self.K, g - x)
+                    - np.dot(self.D, v)
+                    + fs * s
+            )
 
         v = v + v_dot * dt
         xdot = v / des_tau

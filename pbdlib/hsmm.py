@@ -104,7 +104,7 @@ class HSMM(HMM):
 			if sum > realmin:
 				self.Trans_Pd[i, :] /= sum
 
-		# print state_seq
+		# print(state_seq)
 
 		# list of duration
 		stateDuration = [[] for i in range(self.nb_states)]
@@ -122,7 +122,7 @@ class HSMM(HMM):
 				cnt = 1
 				currState = state
 
-		# print stateDuration
+		# print(stateDuration)
 		for i in range(self.nb_states):
 			self.Mu_Pd[i] = np.mean(stateDuration[i])
 			if len(stateDuration[i]) > 1:
@@ -339,7 +339,7 @@ class HSMM(HMM):
 			try:
 				self.Trans_Fw = self.tp_trans.Prior_Trans
 			except:
-				# print "No task-parametrized transition matrix : normal transition matrix will be used"
+				# print("No task-parametrized transition matrix : normal transition matrix will be used")
 				self.Trans_Fw = self.Trans_Pd
 		else:  # compute the transition matrix for current parameters
 			self._update_transition_matrix(tp_param)
@@ -384,11 +384,11 @@ class HSMM(HMM):
 			try:
 				# self.Trans_Fw = self.tp_trans.Prior_Trans
 				self.Trans_Fw = self.Trans_Pd
-			# print self.Trans_Fw
+			# print(self.Trans_Fw)
 			except:
 				print("No task-parametrized transition matrix : normal transition matrix will be used")
 				self.Trans_Fw = self.Trans_Pd
-			# print self.Trans_Fw
+			# print(self.Trans_Fw)
 		else:  # compute the transition matrix for current parameters
 			self._update_transition_matrix(tp_param)
 
