@@ -12,10 +12,13 @@ from .mtmm import MTMM, VBayesianGMM, VMBayesianGMM, VBayesianHMM
 from .dmp import DMP
 
 try:
-	import gui
+	from . import gui
 except ImportError as e:
-	print("Could not import gui: {0}".format(e.message))
-	print("run : sudo apt-get install tkinter")
+	try:
+		print("Could not import gui: {0}".format(e.message))
+		print("run : sudo apt-get install tkinter")
+	except AttributeError as a:
+		raise e
 except:
 	print("Unexpected error:", sys.exc_info()[0])
 	raise
