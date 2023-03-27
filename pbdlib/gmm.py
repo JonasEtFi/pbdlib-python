@@ -160,6 +160,58 @@ class GMM(Model):
 
         return gmm
 
+    def marginal_from_mask(self, mask):
+        """
+        Get the marginal of a GMM given a mask over the dimensions.
+
+        Parameters
+        ----------
+        mask : np.array(nb_dim)[bool]
+            Mask of the dimensions to keep.
+        """        
+        assert mask.shape[0] == self.nb_dim
+        gmm = GMM(nb_dim=np.sum(mask), nb_states=self.nb_states)
+        gmm.priors = self.priors
+        gmm.mu = self.mu[:, mask]
+        gmm.sigma = self.sigma[:, mask][:, :, mask]
+        return gmm
+
+    def interleave(self, other, n_chunks):
+        """
+        Interleave two GMMs of equal dimensions and states.
+
+        Parameters
+        ----------
+        other : GMM
+        """
+        assert self.nb_dim == other.nb_dim
+        assert self.nb_states == other.nb_states
+
+        mu_self_chunks = np.split(self.mu, n_chunks, axis=1)
+        mu_other_chunks = np.split(other.mu, n_chunks, axis=1)
+
+        gmm = GMM(nb_dim=2 * self.nb_dim, nb_states=self.nb_states)
+        gmm.priors = self.priors
+        # interleaving 1D: take one chunk from each, alternatingly
+        gmm.mu = np.concatenate(
+            [np.concatenate((s, o), axis=1) for s, o in
+             zip(mu_self_chunks, mu_other_chunks)], axis=1)
+
+        # interleaving 2D: similar, but need to fill with zeros. Example:
+        # S_11 0    S_12 0
+        # 0    O_11 0    O_12
+        # S_21 0    S_22 0
+        # 0    O_21 0    O_22
+        c = chunk_size = self.nb_dim // n_chunks
+        s = 2 * chunk_size  # length of a zero-filled chunk
+        gmm.sigma = np.zeros((self.nb_states, gmm.nb_dim, gmm.nb_dim))
+        for i in range(n_chunks):
+            gmm.sigma[:, i*s:i*s+c, i*s:i*s+c] = \
+                self.sigma[:, i*c:(i+1)*c, i*c:(i+1)*c]
+            gmm.sigma[:, i*s+c:(i+1)*s, i*s+c:(i+1)*s] = \
+                other.sigma[:, i*c:(i+1)*c, i*c:(i+1)*c]
+        return gmm
+
     def lintrans(self, A, b):
         """
         Linear transformation of a GMM
