@@ -24,16 +24,16 @@ class GMR():
 			Choose True if covariance and mean is in pybdlib format and not scipy
 		"""
 		if use_pybdlib_format:
-			self.gmm = mixture.GMM(n_components=gmm.nb_states, covariance_type='full')
-			self.gmm.weights_ = gmm.Priors
+			self.gmm = mixture.GaussianMixture(n_components=gmm.nb_states, covariance_type='full')
+			self.gmm.weights_ = gmm.priors
 
-			self.gmm.covars_ = np.transpose(gmm.Sigma, (2, 0, 1))
-			self.gmm.means_ = np.transpose(gmm.Mu, (1, 0))
+			self.gmm.covars_ = np.transpose(gmm.sigma, (2, 0, 1))
+			self.gmm.means_ = np.transpose(gmm.mu, (1, 0))
 		else:
 			self.gmm = gmm
 
 		if slice:
-			self.slice_gmm = mixture.GMM(n_components=self.gmm.n_components,
+			self.slice_gmm = mixture.GaussianMixture(n_components=self.gmm.n_components,
 										 covariance_type='full')
 
 		self.use_pybdlib_ = use_pybdlib_format
@@ -147,7 +147,7 @@ class GMR():
 					SigmaOut = SigmaOut + beta[i] * self.SigmaOutTmp[i]
 
 				# create a new gmm from this slice
-		out_gmm = mixture.GMM(n_components=self.gmm.n_components, covariance_type='full')
+		out_gmm = mixture.GaussianMixture(n_components=self.gmm.n_components, covariance_type='full')
 
 		out_gmm.means_ = MusOut
 		out_gmm.covars_ = SigmasOut

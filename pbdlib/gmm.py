@@ -229,6 +229,15 @@ class GMM(Model):
 
         return gmm
 
+    def homogeneous_trans(self, trans):
+        """
+        Like lintrans but for homogeneous transformation.
+        """
+        A = trans[..., :self.nb_dim, :self.nb_dim]
+        b = trans[..., :self.nb_dim, self.nb_dim]
+
+        return self.lintrans(A, b)
+
     def concatenate_gaussian(self, q, get_mvn=True, reg=None):
         """
         Get a concatenated-block-diagonal replication of the GMM with sequence of state
