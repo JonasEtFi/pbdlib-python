@@ -2,11 +2,14 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from .interactive import Interactive
-from colorama import init  # need this to print colored on Windows and init() after
 from termcolor import colored
 import tkinter as tk
 from tkinter.filedialog import asksaveasfilename
 from matplotlib import gridspec
+
+import platform
+if platform.system() == 'Windows':
+	from colorama import init  # need this to print colored on Windows and init() after
 
 
 class Robot(object):
@@ -25,7 +28,8 @@ class InteractiveDemos(Interactive, Robot):
 		Interactive.__init__(self)
 		Robot.__init__(self, self.simulation_T)
 
-		init()  # need to import colorama to use this, see imports
+		if platform.system() == 'Windows':
+			init()  # need to import colorama to use this, see imports
 
 		self.path = os.path.dirname(__file__) if path == '' else path
 		self.fig = plt.figure(figsize=(15, 8), facecolor='white')
