@@ -8,5 +8,5 @@ setup(name='pbdlib',
       author_email='hakan.girgin@idiap.ch',
       license='MIT',
       packages=find_packages(),
-      install_requires=['numpy', 'scipy', 'matplotlib', 'sklearn', 'dtw', 'jupyter', 'termcolor'],
+      install_requires=['numpy', 'scipy', 'matplotlib', 'dtw', 'jupyter', 'termcolor'],
       zip_safe=False)
