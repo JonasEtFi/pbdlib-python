@@ -26,16 +26,14 @@ class GMR():
 		if use_pybdlib_format:
 			self.gmm = mixture.GaussianMixture(n_components=gmm.nb_states, covariance_type='full')
 			self.gmm.weights_ = gmm.priors
-
-			self.gmm.covars_ = np.transpose(gmm.sigma, (2, 0, 1))
-			self.gmm.means_ = np.transpose(gmm.mu, (1, 0))
+			self.gmm.covars_ = gmm.sigma#np.transpose(gmm.sigma, (2, 0, 1))
+			self.gmm.means_ = gmm.mu #np.transpose(gmm.mu, (1, 0))
 		else:
 			self.gmm = gmm
 
 		if slice:
 			self.slice_gmm = mixture.GaussianMixture(n_components=self.gmm.n_components,
 										 covariance_type='full')
-
 		self.use_pybdlib_ = use_pybdlib_format
 		self.InvSigmaInIn = [None] * self.gmm.n_components
 		self.InvSigmaOutIn = [None] * self.gmm.n_components
@@ -47,22 +45,21 @@ class GMR():
 		self.pri_tmp = [None] * self.gmm.n_components
 
 		self.cov_tmp = [None] * self.gmm.n_components
-
 		self.input = None
 		self.output = None
 
 	# @profile
-	def predict_GMM(self, sample, input, output, variance_type='v', predict=False, norm=False,
+	def predict_GMM(self, sample, input, output, variance_type='v', predict=True, norm=False,
 					reg=1e-9):
+		
+		#print(sample)
 
 		has_changed = False
-
 		# check if input or output changed
 		if self.input != input or self.output != output:
 			has_changed = True
 			self.input = input
 			self.output = output
-
 		sloo = np.ix_(self.output, self.output)
 		slii = np.ix_(self.input, self.input)
 		sloi = np.ix_(self.output, self.input)
@@ -95,7 +92,6 @@ class GMR():
 
 		# print prob_un
 		# print prob
-
 		MuOut = None
 		SigmaOut = None
 
@@ -116,10 +112,10 @@ class GMR():
 			if has_changed:
 				self.InvSigmaInIn[i] = linalg.inv(Sigma[slii])
 				self.InvSigmaOutIn[i] = np.dot(Sigma[sloi], self.InvSigmaInIn[i])
-
+			
 			MuOutTmp = Mu[self.output] + np.dot(self.InvSigmaOutIn[i],
 												(sample - Mu[self.input]).T)
-
+			
 			if variance_type == 'full':
 				self.SigmaOutTmp[i] = MuOutTmp ** 2 + (Sigma[sloo] - \
 													   np.dot(self.InvSigmaOutIn[i], \
@@ -136,8 +132,8 @@ class GMR():
 			SigmasOut[i, :, :] = self.SigmaOutTmp[i]
 
 			if predict:
+				
 				MuOut = MuOut + beta[i] * MuOutTmp
-
 				if variance_type == 'full':
 					# see course ML : nonlinearRegression.pdf
 					SigmaOut = SigmaOut + beta[i] * self.SigmaOutTmp[i] - (beta[
@@ -147,8 +143,8 @@ class GMR():
 					SigmaOut = SigmaOut + beta[i] * self.SigmaOutTmp[i]
 
 				# create a new gmm from this slice
+			
 		out_gmm = mixture.GaussianMixture(n_components=self.gmm.n_components, covariance_type='full')
-
 		out_gmm.means_ = MusOut
 		out_gmm.covars_ = SigmasOut
 		out_gmm.weights_ = beta

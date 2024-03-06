@@ -1,3 +1,4 @@
+import re
 import numpy as np
 from .model import *
 from .functions import multi_variate_normal
@@ -5,6 +6,15 @@ from scipy.linalg import block_diag
 from scipy.special import logsumexp
 from termcolor import colored
 from .mvn import MVN
+from enum import Enum
+import torch
+
+class Regularization(Enum):
+    SHRINKAGE = 1
+    DIAGONAL = 2
+    COMBINED = 3
+    DIAGONAL_ONLY = 4
+    ADD_CONSTANT = 5
 
 
 class GMM(Model):
@@ -48,6 +58,20 @@ class GMM(Model):
 
         return mvn
 
+    def merge_components(self, i, j):
+        merged_mean = np.mean((self.mu[i], self.mu[j]), axis=0)
+        merged_sigma = np.mean((self.sigma[i], self.sigma[j]), axis=0)
+        merged_prior = np.mean((self.priors[i], self.priors[j]))
+        
+        self.mu = np.delete(self.mu, [i,j], axis=0)
+        self.sigma = np.delete(self.sigma, [i,j], axis=0)
+        self.priors = np.delete(self.priors, [i,j])
+
+        self.mu = np.vstack((self.mu, merged_mean))
+        self.sigma = np.vstack([self.sigma, [merged_sigma]])
+        self.priors = np.append(self.priors, merged_prior)
+        self.nb_states -= 1
+
     def moment_matching(self, h):
         """
         Perform moment matching to approximate a mixture of Gaussian as a Gaussian
@@ -85,12 +109,12 @@ class GMM(Model):
             raise NotImplementedError
 
     def __mul__(self, other):
-        """
-        Renormalized product of Gaussians, component by component
+    #     """
+    #     Renormalized product of Gaussians, component by component
 
-        :param other:
-        :return:
-        """
+    #     :param other:
+    #     :return:
+    #     """
         if isinstance(other, MVN):
             gmm = GMM(nb_dim=self.nb_dim, nb_states=self.nb_states)
             gmm.mu = np.einsum('aij,aj->ai', self.lmbda, self.mu) + \
@@ -114,14 +138,33 @@ class GMM(Model):
 
         else:
             # component wise
+            diag_const = 1e-6
+            dia = []
+            for i in range(3):
+                dia.append(np.eye(4,4))
+            dia = np.array(dia) * diag_const
+            try:
+                lmbda_s = np.linalg.inv(self.sigma)
+            except np.linalg.LinAlgError:
+                lmbda_s = np.linalg.inv(self.sigma + dia)
+            try:
+                lmbda_o = np.linalg.inv(other.sigma)
+            except np.linalg.LinAlgError:
+                lmbda_o = np.linalg.inv(other.sigma + dia)
+                
+
             gmm = GMM(nb_dim=self.nb_dim, nb_states=self.nb_states)
+                
+            mu = np.einsum('aij,aj->ai', lmbda_s, self.mu) + \
+                         np.einsum('aij,aj->ai', lmbda_o, other.mu)
+            try:
+                sigma = np.linalg.inv(lmbda_s + lmbda_o )
+            except np.linalg.LinAlgError:
+                sigma = np.linalg.inv(lmbda_s + lmbda_o + dia)
+
+            gmm.mu = np.einsum('aij,aj->ai', sigma , mu)
+            gmm.sigma = sigma
             gmm.priors = self.priors
-            gmm.mu = np.einsum('aij,aj->ai', self.lmbda, self.mu) + \
-                     np.einsum('aij,aj->ai', other.lmbda, other.mu)
-
-            gmm.lmbda = self.lmbda + other.lmbda
-
-            gmm.mu = np.einsum('aij,aj->ai', gmm.sigma, gmm.mu)
 
         return gmm
 
@@ -146,18 +189,50 @@ class GMM(Model):
 
         return gmm
 
-    def marginal_model(self, dims):
+    
+
+    def marginal_model(self, dims, time_based=False):
         """
         Get a GMM of a slice of this GMM
         :param dims:
         :type dims: slice
+        :time_based: bool 
         :return:
         """
-        gmm = GMM(nb_dim=dims.stop - dims.start, nb_states=self.nb_states)
-        gmm.priors = self.priors
-        gmm.mu = self.mu[:, dims]
-        gmm.sigma = self.sigma[:, dims, dims]
+        def _slice_cov_time_based(dims, cov):
+            """
+            Slice the covariance Matrix correct including the time dimension
+            :dims: slice
+            :cov: Covariance Matrix
+            """
+            sliced_cov = []
+            for i in range(len(cov)):
+                cov_tmp = cov[i]
+                time_col_and_row = cov_tmp[:, 0]   # the first row and collum are symmetric because the covariance 
+                                                   # matrix are symmetric
+                time_top = np.array([time_col_and_row[dims]])
+                time_col_and_row = np.array([np.concatenate(([time_col_and_row[0]], time_col_and_row[dims]))])
+                
+                dim_matrix = np.array(cov_tmp[:, dims][dims])
+                dim_matrix = np.concatenate((time_top, dim_matrix))
+                cov_per_component = np.concatenate((time_col_and_row.T, dim_matrix), axis=1)
+                
+                sliced_cov.append(cov_per_component)
 
+            return sliced_cov
+
+        if time_based:
+            dims = slice(dims.start+1, dims.stop+1)
+            gmm = GMM(nb_dim=dims.stop - dims.start + 1, nb_states=self.nb_states)
+            gmm.priors = self.priors
+            time_dim = np.array([self.mu[:, 0]])
+            gmm.mu = np.concatenate((time_dim.T, self.mu[:, dims]), axis=1)
+            gmm.sigma = _slice_cov_time_based(dims, self.sigma)
+        else:
+            gmm = GMM(nb_dim=dims.stop - dims.start, nb_states=self.nb_states)
+            gmm.priors = self.priors
+            gmm.mu = self.mu[:, dims]
+            gmm.sigma = self.sigma[:, dims, dims]
         return gmm
 
     def marginal_from_mask(self, mask):
@@ -340,9 +415,9 @@ class GMM(Model):
 
         self.priors = np.ones(self.nb_states) / self.nb_states
 
-    def em(self, data, reg=1e-8, maxiter=100, minstepsize=1e-5, diag=False, reg_finish=False,
+    def em(self, data, reg=1e-8,reg2=1e-3, maxiter=100, minstepsize=1e-5, diag=False, reg_finish=False,
            kmeans_init=False, random_init=True, dep_mask=None, verbose=False, only_scikit=False,
-           no_init=False):
+           no_init=False, fix_first_component=False, fix_last_component=False, reg_type = Regularization.ADD_CONSTANT):
         """
 
         :param data:	 		[np.array([nb_timesteps, nb_dim])]
@@ -366,7 +441,6 @@ class GMM(Model):
             self.nb_dim = data.shape[-1]
 
         self.reg = reg
-
         nb_min_steps = 5  # min num iterations
         nb_max_steps = maxiter  # max iterations
         max_diff_ll = minstepsize  # max log-likelihood increase
@@ -393,25 +467,73 @@ class GMM(Model):
             # E - step
             L = np.zeros((self.nb_states, nb_samples))
             L_log = np.zeros((self.nb_states, nb_samples))
-
             for i in range(self.nb_states):
                 L_log[i, :] = np.log(self.priors[i]) + multi_variate_normal(data.T, self.mu[i],
                                                                             self.sigma[i], log=True)
-
+                
             L = np.exp(L_log)
-            GAMMA = L / np.sum(L, axis=0)
+            
+            
+            GAMMA = L / (np.sum(L, axis=0) + 1e-5)
             GAMMA2 = GAMMA / np.sum(GAMMA, axis=1)[:, np.newaxis]
-
             # M-step
-            self.mu = np.einsum('ac,ic->ai', GAMMA2,
+            if fix_first_component and fix_last_component:
+                self.mu[1:-1] = np.einsum('ac,ic->ai', GAMMA2[1:-1],
                                 data)  # a states, c sample, i dim
 
-            dx = data[None, :] - self.mu[:, :, None]  # nb_dim, nb_states, nb_samples
+                dx = data[None, :] - self.mu[:, :, None]  # nb_dim, nb_states, nb_samples
 
-            self.sigma = np.einsum('acj,aic->aij', np.einsum('aic,ac->aci', dx, GAMMA2),
+                self.sigma[1:-1] = np.einsum('acj,aic->aij', np.einsum('aic,ac->aci', dx[1:-1], GAMMA2[1:-1]),
+                                   dx[1:-1])  # a states, c sample, i-j dim
+            
+            elif fix_first_component:
+                if self.mu.shape[0] == 1:
+                    continue
+                self.mu[1:] = np.einsum('ac,ic->ai', GAMMA2[1:],
+                                data)  # a states, c sample, i dim
+
+                dx = data[None, :] - self.mu[:, :, None]  # nb_dim, nb_states, nb_samples
+
+                self.sigma[1:] = np.einsum('acj,aic->aij', np.einsum('aic,ac->aci', dx[1:], GAMMA2[1:]),
+                                   dx[1:])  # a states, c sample, i-j dim
+            
+            elif fix_last_component:
+                if self.mu.shape[0] == 1:
+                    continue
+                self.mu[:-1] = np.einsum('ac,ic->ai', GAMMA2[:-1],
+                                data)  # a states, c sample, i dim
+
+                dx = data[None, :] - self.mu[:, :, None]  # nb_dim, nb_states, nb_samples
+
+                self.sigma[:-1] = np.einsum('acj,aic->aij', np.einsum('aic,ac->aci', dx[:-1], GAMMA2[:-1]),
+                                   dx[:-1])  # a states, c sample, i-j dim
+
+            else:
+                if self.mu.shape[0] == 1:
+                    continue
+                self.mu = np.einsum('ac,ic->ai', GAMMA2,
+                                data)  # a states, c sample, i dim
+
+                dx = data[None, :] - self.mu[:, :, None]  # nb_dim, nb_states, nb_samples
+
+                self.sigma = np.einsum('acj,aic->aij', np.einsum('aic,ac->aci', dx, GAMMA2),
                                    dx)  # a states, c sample, i-j dim
-
-            self.sigma += self.reg
+            
+            if reg_type.value == Regularization.SHRINKAGE.value:
+                for sigma in self.sigma:
+                    sigma = reg*np.diag(np.diag(sigma)) + (1-reg)*sigma
+            elif reg_type.value == Regularization.DIAGONAL.value:
+                for sigma in self.sigma:
+                    sigma = sigma + np.eye((len(sigma))) * reg
+            elif reg_type.value == Regularization.COMBINED.value:
+                for sigma in self.sigma:
+                    sigma = reg*np.diag(np.diag(sigma)) + (1-reg)*sigma + np.eye(len(sigma)) * reg2
+            elif reg_type.value == Regularization.DIAGONAL_ONLY.value:
+                for sigma in self.sigma:
+                    sigma += np.eye(len(sigma))
+            elif reg_type.value == Regularization.ADD_CONSTANT.value:
+                self.sigma += self.reg
+            
 
             if diag:
                 self.sigma *= np.eye(self.nb_dim)
@@ -419,12 +541,12 @@ class GMM(Model):
             if dep_mask is not None:
                 self.sigma *= dep_mask
 
-            # print self.Sigma[:,u :, i]
 
             # Update initial state probablility vector
             self.priors = np.mean(GAMMA, axis=1)
-
-            LL[it] = np.mean(np.log(np.sum(L, axis=0)))
+            
+            LL[it] = np.mean(np.log(np.sum(L, axis=0) + 1e-7))
+            self.max_log_likelihood = np.max(LL)
             # Check for convergence
             if it > nb_min_steps:
                 if LL[it] - LL[it - 1] < max_diff_ll:
@@ -434,11 +556,126 @@ class GMM(Model):
 
                     if verbose:
                         print(colored('Converged after %d iterations: %.3e' % (it, LL[it]), 'red', 'on_white'))
+                    
                     return GAMMA
         if verbose:
             print(
                 "GMM did not converge before reaching max iteration. Consider augmenting the number of max iterations.")
+        
+        self.max_log_likelihood = np.max(LL)
         return GAMMA
+
+    def init_time_based_parameterized(self, data, trajectories_length,fix_first_component=False, fix_last_component=False, reg=1e-8):
+        """
+        Initialzie the Parameterized GMM by his time component
+        
+        Parameters
+        -------------------
+        Data: List[List] of the data
+        num_trajectories: Number of different trajectories
+        trajectories_length: List of the length of the trajectories
+        reg: regularization value
+        """
+        self.nb_dim = data.shape[1]
+        nb_states = self.nb_states        
+        self.init_zeros()
+
+        if fix_first_component:
+            self.mu[0] = np.mean(data[0:2], axis=0)
+            self._sigma[0] = (np.cov(data[0:2].T) + np.eye(self.nb_dim) * reg)*10
+            self._priors[0] = data[0:2].shape[0]
+
+        if fix_last_component:
+            self.mu[nb_states-1] = np.mean(data[-2:], axis=0)
+            self._sigma[nb_states-1] = np.cov(data[-2:].T) + np.eye(self.nb_dim) * reg
+            self._priors[nb_states-1] = data[-2:].shape[0]
+
+        for i in range(nb_states):
+            data_slice = np.empty((0,self.nb_dim))
+            dataStep = 0
+            start = 0
+            end = 0
+            
+            for t_length in trajectories_length:
+                start = dataStep + (t_length * i // nb_states)
+                end = (t_length * (i+1) // nb_states) + dataStep
+                data_slice = np.concatenate([data_slice, data[start: end]], axis=0)
+                dataStep += t_length
+
+            if fix_last_component and i == nb_states-1:
+                continue
+            if fix_first_component and i==0:
+                continue
+            self._mu[i] = np.mean(data_slice, axis=0)
+            self._sigma[i] = np.cov(data_slice.T) + np.eye(self.nb_dim) * reg
+            self._priors[i] = data_slice.shape[0]
+
+        # Normaize priors
+        self.priors = self.priors / np.sum(self.priors)
+
+        self.Trans = np.ones((self.nb_states, self.nb_states)) * 0.01
+
+        self.init_priors = np.ones(self.nb_states) * 1. / self.nb_states
+
+
+
+
+
+
+    def init_time_based(self, data, num_trajectories, fix_first_component=False, fix_last_component=False,
+                         dep=None, reg=1e-8, dep_mask=None):
+        """
+        Initialize the GMM by his time component. 
+        """
+        self.nb_dim = data.shape[1]
+
+        trajectorie_size = int(data.shape[0] / num_trajectories)
+
+        nb_states = self.nb_states
+        self.init_zeros() 
+        compononent_start = 0
+
+        if fix_first_component:
+            self.mu[0] = np.mean(data[0:2], axis=0)
+            self._sigma[0] = (np.cov(data[0:2].T) + np.eye(self.nb_dim) * reg)
+            self._priors[0] = data[0:2].shape[0]
+
+        if fix_last_component:
+            self.mu[nb_states-1] = np.mean(data[-2:], axis=0)
+            self._sigma[nb_states-1] = np.cov(data[-2:].T) + np.eye(self.nb_dim) * reg
+            self._priors[nb_states-1] = data[-2:].shape[0]
+
+        self.xdx = []
+        t_values = np.linspace(0, 1, trajectorie_size)
+        t_sep = np.linspace(0, 1, nb_states +1)
+        
+        for i in range(nb_states):
+            data_slice = np.empty((0, self.nb_dim))
+            for j in range(num_trajectories):
+                start_time = np.argmin(np.abs(t_values - t_sep[i]))  + j* trajectorie_size
+                end_time = np.argmin(np.abs(t_values - t_sep[i + 1]))  + j* trajectorie_size
+                data_slice = np.concatenate([data_slice, data[start_time: end_time]], axis=0)
+
+            if fix_last_component and i == nb_states-1:
+                continue
+            if fix_first_component and i==0:
+                continue
+            
+            self._mu[i] = np.mean(data_slice, axis=0)
+            self._sigma[i] = np.cov(data_slice.T) + np.eye(self.nb_dim) * reg
+            self._priors[i] = data_slice.shape[0]
+
+       
+        # normalize priors
+        self.priors = self.priors / np.sum(self.priors)
+
+        self.Trans = np.ones((self.nb_states, self.nb_states)) * 0.01
+
+        self.init_priors = np.ones(self.nb_states) * 1. / self.nb_states
+
+        
+
+
 
     def init_hmm_kbins(self, demos, dep=None, reg=1e-8, dep_mask=None):
         """
@@ -470,7 +707,7 @@ class GMM(Model):
             # Get bins indices for each demonstration
             for n, demo in enumerate(demos):
                 inds = range(t_sep[n][i], t_sep[n][i + 1])
-
+                
                 data_tmp = np.concatenate([data_tmp, demo[inds]], axis=0)
                 states_nb_data += t_sep[n][i + 1] - t_sep[n][i]
 

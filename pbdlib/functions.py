@@ -320,7 +320,11 @@ def multi_variate_normal(x, mu, sigma=None, log=True, gmm=False, lmbda=None):
 		x = x[:, None] if x.ndim == 1 else x
 
 		dx = mu - x
-		lmbda_ = np.linalg.inv(sigma) if lmbda is None else lmbda
+		# Catch singularity matrix
+		try:
+			lmbda_ = np.linalg.inv(sigma) if lmbda is None else lmbda 
+		except np.linalg.LinAlgError:
+			lmbda_ = np.linalg.inv(sigma + 1e-8) if lmbda is None else lmbda
 
 		log_lik = -0.5 * np.einsum('...j,...j', dx, np.einsum('...jk,...j->...k', lmbda_, dx))
 
