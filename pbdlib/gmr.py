@@ -51,7 +51,6 @@ class GMR():
 	# @profile
 	def predict_GMM(self, sample, input, output, variance_type='v', predict=True, norm=False,
 					reg=1e-9):
-		
 		#print(sample)
 
 		has_changed = False

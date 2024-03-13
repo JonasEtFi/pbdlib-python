@@ -191,7 +191,7 @@ class GMM(Model):
 
     
 
-    def marginal_model(self, dims, time_based=False):
+    def marginal_model(self, dims, time_based=False, gripper_based=False):
         """
         Get a GMM of a slice of this GMM
         :param dims:
@@ -216,14 +216,13 @@ class GMM(Model):
                 dim_matrix = np.array(cov_tmp[:, dims][dims])
                 dim_matrix = np.concatenate((time_top, dim_matrix))
                 cov_per_component = np.concatenate((time_col_and_row.T, dim_matrix), axis=1)
-                
                 sliced_cov.append(cov_per_component)
 
             return sliced_cov
 
         if time_based:
             dims = slice(dims.start+1, dims.stop+1)
-            gmm = GMM(nb_dim=dims.stop - dims.start + 1, nb_states=self.nb_states)
+            gmm = GMM(nb_dim=dims.stop - dims.start + 1, nb_states=self.nb_states) if not gripper_based else GMM(nb_dim=dims.stop - dims.start + 2, nb_states=self.nb_states)
             gmm.priors = self.priors
             time_dim = np.array([self.mu[:, 0]])
             gmm.mu = np.concatenate((time_dim.T, self.mu[:, dims]), axis=1)
@@ -233,6 +232,25 @@ class GMM(Model):
             gmm.priors = self.priors
             gmm.mu = self.mu[:, dims]
             gmm.sigma = self.sigma[:, dims, dims]
+        if gripper_based and time_based:
+            gripper_dim = np.array([self.mu[:, -1]])
+            gmm.mu = np.concatenate((gmm.mu, gripper_dim.T), axis=1)
+            new_shape = gmm.sigma[0].shape[0]
+            new_sigma = []
+            for i in range(len(self.sigma)):
+                cov = self.sigma[i]
+                grip_time = cov[0,-1:]
+                gripper_slice = cov[-1, dims]
+                gripper_to_gripper = cov[-1,-1:]
+                
+                new_cov = np.zeros((new_shape+1, new_shape+1))
+                new_cov[:new_shape,:new_shape] = gmm.sigma[i]
+                
+                gripper_col_and_row = np.concatenate((grip_time, gripper_slice, gripper_to_gripper))
+                new_cov[:,-1] = gripper_col_and_row
+                new_cov[-1] = gripper_col_and_row
+                new_sigma.append(new_cov)
+            gmm.sigma = np.array(new_sigma)
         return gmm
 
     def marginal_from_mask(self, mask):
@@ -444,7 +462,7 @@ class GMM(Model):
         nb_min_steps = 5  # min num iterations
         nb_max_steps = maxiter  # max iterations
         max_diff_ll = minstepsize  # max log-likelihood increase
-
+        print(f"EM mu spae {self.mu[:,:-1].shape} and sigma shape {self.sigma[:,:-1, :-1].shape}")
         nb_samples = data.shape[0]
 
         if not no_init:
@@ -467,9 +485,11 @@ class GMM(Model):
             # E - step
             L = np.zeros((self.nb_states, nb_samples))
             L_log = np.zeros((self.nb_states, nb_samples))
+            print(f" likeli shape is {L.shape} and log {L_log.shape} ")
+
             for i in range(self.nb_states):
-                L_log[i, :] = np.log(self.priors[i]) + multi_variate_normal(data.T, self.mu[i],
-                                                                            self.sigma[i], log=True)
+                L_log[i, :] = np.log(self.priors[i]) + multi_variate_normal(data.T, self.mu[i][:-1],
+                                                                            self.sigma[i][:-1, :-1], log=True)
                 
             L = np.exp(L_log)
             
@@ -630,20 +650,20 @@ class GMM(Model):
         self.nb_dim = data.shape[1]
 
         trajectorie_size = int(data.shape[0] / num_trajectories)
-
+        date_flatten = data.reshape(num_trajectories,-1, self.nb_dim)
         nb_states = self.nb_states
         self.init_zeros() 
         compononent_start = 0
 
         if fix_first_component:
-            self.mu[0] = np.mean(data[0:2], axis=0)
-            self._sigma[0] = (np.cov(data[0:2].T) + np.eye(self.nb_dim) * reg)
-            self._priors[0] = data[0:2].shape[0]
+            self.mu[0] = np.mean(date_flatten[:,:2], axis=(0,1))
+            self._sigma[0] = (np.cov(date_flatten[:,:2].reshape(-1, self.nb_dim).T) + np.eye(self.nb_dim) * reg)
+            self._priors[0] = date_flatten[:,:2].shape[-1]
 
         if fix_last_component:
-            self.mu[nb_states-1] = np.mean(data[-2:], axis=0)
-            self._sigma[nb_states-1] = np.cov(data[-2:].T) + np.eye(self.nb_dim) * reg
-            self._priors[nb_states-1] = data[-2:].shape[0]
+            self.mu[nb_states-1] = np.mean(date_flatten[:,-2:], axis=(0,1))
+            self._sigma[nb_states-1] = np.cov(date_flatten[:,-2:].reshape(-1, self.nb_dim).T) + np.eye(self.nb_dim) * reg
+            self._priors[nb_states-1] = date_flatten[:,-2:].shape[-1]
 
         self.xdx = []
         t_values = np.linspace(0, 1, trajectorie_size)
