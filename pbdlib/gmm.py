@@ -434,7 +434,7 @@ class GMM(Model):
         self.priors = np.ones(self.nb_states) / self.nb_states
 
     def em(self, data, reg=1e-8,reg2=1e-3, maxiter=100, minstepsize=1e-5, diag=False, reg_finish=False,
-           kmeans_init=False, random_init=True, dep_mask=None, verbose=False, only_scikit=False,
+           kmeans_init=False, random_init=True, dep_mask=None, verbose=False, only_scikit=False, gripper_action=False,
            no_init=False, fix_first_component=False, fix_last_component=False, reg_type = Regularization.ADD_CONSTANT):
         """
 
@@ -462,7 +462,6 @@ class GMM(Model):
         nb_min_steps = 5  # min num iterations
         nb_max_steps = maxiter  # max iterations
         max_diff_ll = minstepsize  # max log-likelihood increase
-        print(f"EM mu spae {self.mu[:,:-1].shape} and sigma shape {self.sigma[:,:-1, :-1].shape}")
         nb_samples = data.shape[0]
 
         if not no_init:
@@ -485,11 +484,14 @@ class GMM(Model):
             # E - step
             L = np.zeros((self.nb_states, nb_samples))
             L_log = np.zeros((self.nb_states, nb_samples))
-            print(f" likeli shape is {L.shape} and log {L_log.shape} ")
-
             for i in range(self.nb_states):
-                L_log[i, :] = np.log(self.priors[i]) + multi_variate_normal(data.T, self.mu[i][:-1],
+                # Ignore Gripper dimension in EM
+                if gripper_action:
+                    L_log[i, :] = np.log(self.priors[i]) + multi_variate_normal(data.T[:,:-1], self.mu[i][:-1],
                                                                             self.sigma[i][:-1, :-1], log=True)
+                else:
+                    L_log[i, :] = np.log(self.priors[i]) + multi_variate_normal(data.T, self.mu[i],
+                                                                            self.sigma[i], log=True)
                 
             L = np.exp(L_log)
             
